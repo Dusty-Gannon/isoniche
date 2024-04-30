@@ -26,7 +26,7 @@ dat <- dat %>% mutate(
   grp = factor(rep(c(1,2), each = 100))
 )
 
-scatter <- ggplot(data = dat, aes(x = V1, y = V2, color = grp)) +
+ggplot(data = dat, aes(x = V1, y = V2, color = grp)) +
   geom_point(alpha = 0.5)
 
 
@@ -46,7 +46,19 @@ datlist <- list(
   y = as.matrix(select(dat, V1:V2))
 )
 
-stanmod <- stan_model("STAN/isoniche.stan")
+stanmod <- isoniche(
+  mean = list(
+    V1 ~ grp,
+    V2 ~ grp
+  ),
+  var = list(
+    ~ grp,
+    ~ grp,
+    ~ grp
+  ),
+  data = dat,
+  cores = 4
+)
 test <- sampling(stanmod, data = datlist)
 
 # construct standard ellipses
@@ -119,7 +131,7 @@ dat_ellipse <- dat_ellipse %>% mutate(
   grp = factor(rep(c(1, 2), each = 100))
 )
 
-scatter + 
+scatter +
   geom_path(
     data = dat_ellipse,
     aes(x = V1, y = V2, color = grp)
