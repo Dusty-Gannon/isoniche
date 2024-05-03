@@ -112,6 +112,7 @@ isoniche <- function(mean, var, data, ...){
 #' @examples /inst/examples/isoniche_eg.R
 construct_ellipses <- function(mfit, newdat, n = 1){
 
+  resp_names <- as.vector(sapply(mfit$model$mean, all.vars)[1, ])
   varnames <- as.vector(sapply(mfit$model$mean, all.vars)[-1, ])
   varnames <- c(
     varnames,
@@ -121,7 +122,8 @@ construct_ellipses <- function(mfit, newdat, n = 1){
     stop("newdat must contain columns for all the variables used to fit the model.\n")
   }
   # construct new model matrices for prediction
-  Xs <- lapply(mfit$model$mean, model.matrix, data = newdat)
+  rhs_mforms <- lapply(mfit$model$mean, rhs_form)
+  Xs <- lapply(rhs_mforms, model.matrix, data = newdat)
   Zs <- lapply(mfit$model$var, model.matrix, data = newdat)
 
   # bind these together for joint model specification
@@ -131,24 +133,130 @@ construct_ellipses <- function(mfit, newdat, n = 1){
   # final model matrix defines the model for the correlation
   G_new <- Zs[[3]]
 
-  # construct parameter matrices
+  # construct matrix of xy coords for a unit circle
+  xy_circ <- rbind(
+    cos(seq(0, 2 * pi, length.out = 100)),
+    sin(seq(0, 2 * pi, length.out = 100))
+  )
+  ones <- matrix(data = 1, 2, 100)
+
   if(n == 1){
+    # construct parameter matrices
+    B <- make_parmat(
+      mfit$data$datlist$P,
+      rstan::summary(mfit$fit, pars = "beta_1")$summary[, "mean"],
+      rstan::summary(mfit$fit, pars = "beta_2")$summary[, "mean"]
+    )
+    Zeta <- make_parmat(
+      mfit$data$datlist$K,
+      rstan::summary(mfit$fit, pars = "zeta_1")$summary[, "mean"],
+      rstan::summary(mfit$fit, pars = "zeta_2")$summary[, "mean"]
+    )
+    gamma <- rstan::summary(mfit$fit, pars = "gamma")$summary[, "mean"]
 
+    # make means and lower cholesky factors for each row of newdat
+    mu_new <- lapply(
+      1:nrow(newdat),
+      function(i, X_new, B){
+        as.double(X_new[i, ] %*% B)
+      },
+      X_new, B
+    )
+    L_new <- lapply(
+      1:nrow(newdat),
+      function(i, Z_new, Zeta, G_new, gamma){
+        s <- exp(as.double(Z_new[i, ] %*% Zeta))
+        rho <- 2 * plogis(as.double(G_new[i, ] %*% gamma)) - 1
+        return(make_L2d(rho, s))
+      },
+      Z_new, Zeta, G_new, gamma
+    )
+
+    # make dfs for ellipses coords
+    dfs_new <- mapply(
+      function(mu, L, ones, xy_circ){
+        t(diag(mu) %*% ones + L %*% xy_circ)
+      },
+      mu_new, L_new,
+      MoreArgs = list(
+        ones = ones,
+        xy_circ = xy_circ
+      ),
+      SIMPLIFY = F
+    )
+
+    # make sure the names line up
+    dfs_new <- lapply(dfs_new, `colnames<-`, resp_names)
+
+    # construct one big dataframe
+    df_full <- as.data.frame(newdat[rep(1:nrow(newdat), each = 100), ])
+    names(df_full) <- names(newdat)
+    df_full$ellipse_id <- factor(rep(1:nrow(newdat), each = 100))
+    return(cbind(
+      df_full,
+      Reduce(rbind, dfs_new)
+    ))
   }
-
+  # now if there are multiple draws from posterior
+  if(n > 1){
+    # construct lists of parameter matrices
+    post_draws <- rstan::extract(mfit$fit)
+    draws <- sample(1:length(post_draws$lp__), size = n)
+    B_list <- lapply(
+      draws,
+      function(i, P, post_draws){
+        beta_1 <- as.double(post_draws$beta_1[i, ])
+        beta_2 <- as.double(post_draws$beta_2[i, ])
+        make_parmat(P, beta_1, beta_2)
+      },
+      P = mfit$data$datlist$P,
+      post_draws = post_draws
+    )
+    Zeta_list <- lapply(
+      draws,
+      function(i, P, post_draws){
+        zeta_1 <- as.double(post_draws$zeta_1[i, ])
+        zeta_2 <- as.double(post_draws$zeta_2[i, ])
+        make_parmat(P, zeta_1, zeta_2)
+      },
+      P = mfit$data$datlist$K,
+      post_draws = post_draws
+    )
+    gamma_list <- lapply(
+      draws,
+      function(i, post_draws){as.double(post_draws$gamma[i, ])},
+      post_draws
+    )
+  }
 }
 
 
 # helper functions ---------------------------
 
+rhs_form <- function(form){
+  sform <- Reduce(paste, deparse(form))
+  formula(stringr::str_extract(sform, "\\~ .+"))
+}
+
+
+make_L2d <- function(rho, sigma){
+  Omeg <- diag(nrow = 2)
+  Omeg[upper.tri(Omeg, diag = F)] <- rho
+  Omeg[lower.tri(Omeg, diag = F)] <- rho
+  S <- diag(sigma) %*% Omeg %*% diag(sigma)
+  return(t(chol(S)))
+}
 
 make_parmat <- function(P, theta_1, theta_2){
 
   B <- matrix(data = 0, nrow = sum(P), ncol = 2)
   B[1:P[1], 1] <- theta_1
   B[(P[1] + 1):sum(P), 2] <- theta_2
+  return(B)
 
 }
+
+
 
 
 

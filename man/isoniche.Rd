@@ -32,6 +32,8 @@ in isotopic niche comparisons.
 
 library(rstan)
 library(tidyverse)
+library(isoniche)
+set.seed(9986)
 
 # simulating some example data
 rho <- c(0, 0.5)
@@ -60,7 +62,7 @@ dat <- dat \%>\% mutate(
 
 # fitting the model, one bivariate normal
 # distribution per group
-stanmod <- isoniche(
+mfit <- isoniche(
   mean = list(
     V1 ~ grp,
     V2 ~ grp
@@ -74,84 +76,19 @@ stanmod <- isoniche(
   cores = 4
 )
 
-
-
-# construct standard ellipses
-X_new <- unique(datlist$X)
-Z_new <- unique(datlist$Z)
-G_new <- unique(datlist$G)
-
-summary(test, pars = "gamma")
-
-B <- matrix(data = 0, nrow = sum(datlist$P), ncol = 2)
-B[1:datlist$P[1], 1] <- summary(test, pars = "beta_1")$summary[, "mean"]
-B[(datlist$P[1] + 1):nrow(B), 2] <- summary(test, pars = "beta_2")$summary[, "mean"]
-
-Z <- matrix(data = 0, nrow = sum(datlist$K), ncol = 2)
-Z[1:datlist$K[1], 1] <- summary(test, pars = "zeta_1")$summary[, "mean"]
-Z[(datlist$K[1] + 1):nrow(Z), 2] <- summary(test, pars = "zeta_2")$summary[, "mean"]
-
-gamma <- summary(test, pars = "gamma")$summary[, "mean"]
-
-mu_new <- map(
-  1:nrow(X_new),
-  ~ {
-    as.double(X_new[.x, ] \%*\% B)
-  }
+# make new data for constructing ellipses
+newdat <- data.frame(
+  grp = unique(dat$grp)
 )
 
-Omega_new <- map(
-  1:nrow(G_new),
-  ~ {
-    Omega <- diag(nrow = 2)
-    rho <- 2 * plogis(as.double(G_new[.x, ] \%*\% gamma)) - 1
-    Omega[1, 2] <- rho
-    Omega[2, 1] <- rho
-    Omega
-  }
-)
+plotdf <- construct_ellipses(mfit, newdat)
 
-sigma_new <- map(
-  1:nrow(Z_new),
-  ~ {
-    exp(as.double(Z_new[.x, ] \%*\% Z))
-  }
-)
-
-Sigma_new <- map2(
-  sigma_new, Omega_new,
-  ~ {diag(.x) \%*\% .y \%*\% diag(.x)}
-)
-
-L_new <- map(
-  Sigma_new,
-  ~ t(chol(.x))
-)
-
-theta <- rbind(
-  cos(seq(0, 2 * pi, length.out = 100)),
-  sin(seq(0, 2 * pi, length.out = 100))
-)
-
-grp1 <- matrix(nrow = 100, ncol = 2)
-grp2 <- grp1
-
-for(i in 1:100){
-  grp1[i, ] <- t(mu_new[[1]] + L_new[[1]] \%*\% theta[, i])
-  grp2[i, ] <- t(mu_new[[2]] + L_new[[2]] \%*\% theta[, i])
-}
-
-dat_ellipse <- as_tibble(rbind(grp1, grp2))
-dat_ellipse <- dat_ellipse \%>\% mutate(
-  grp = factor(rep(c(1, 2), each = 100))
-)
-
-scatter +
+ggplot(data = dat, aes(x = V1, y = V2, color = grp)) +
+  geom_point() +
   geom_path(
-    data = dat_ellipse,
-    aes(x = V1, y = V2, color = grp)
+    data = plotdf,
+    aes(group = ellipse_id)
   )
-ggsave("testplot.png", height = 4, width = 5, units = "in")
 
 
 }
