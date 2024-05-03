@@ -17,7 +17,7 @@
 #'
 #' @return A fitted model object from the \pkg{rstan} package.
 #'
-#' @example modelfit_eg.R
+#' @example /inst/examples/isoniche_eg.R
 #'
 isoniche <- function(mean, var, data, ...){
 
@@ -65,7 +65,7 @@ isoniche <- function(mean, var, data, ...){
     y = as.matrix(data[, ynames])
   )
 
-  rstan::sampling(
+  fit <- rstan::sampling(
     stanmodels$isonich,
     data = datlist,
     iter = stan_vars$iter,
@@ -75,5 +75,82 @@ isoniche <- function(mean, var, data, ...){
     control = stan_vars$control
   )
 
+  return(
+    list(
+      fit = fit,
+      model = list(
+        mean = mean,
+        var = var
+      ),
+      data = list(
+        df = data,
+        datlist = datlist
+      )
+    )
+  )
+
 }
+
+
+#' Construct standard ellipses from fitted model
+#'
+#' This function takes in a dataframe that represents the new data over which
+#' to predict. For example, a set of groups for which to construct standard
+#' ellipses.
+#'
+#' @param mfit Fitted isoniche model object.
+#' @param newdat New data, with all the same columns as the original data used to
+#' fit the model.
+#' @param n Number of draws from the posterior that can be used to display standard ellipses.
+#' The default is 1, which results in ellipses being drawn from the marginal means of the posterior
+#' of each parameter. If \code{n} > 1, then the function will draw \code{n} samples from the joint
+#' posterior and construct a standard ellipse for each set of parameters.
+#'
+#' @return A dataframe that can be used for plotting standard ellipses or calculating isotopic niche
+#' statistics.
+#'
+#' @examples /inst/examples/isoniche_eg.R
+construct_ellipses <- function(mfit, newdat, n = 1){
+
+  varnames <- as.vector(sapply(mfit$model$mean, all.vars)[-1, ])
+  varnames <- c(
+    varnames,
+    as.vector(sapply(mfit$model$var, all.vars))
+  )
+  if(any(!(unique(varnames) %in% names(newdat)))){
+    stop("newdat must contain columns for all the variables used to fit the model.\n")
+  }
+  # construct new model matrices for prediction
+  Xs <- lapply(mfit$model$mean, model.matrix, data = newdat)
+  Zs <- lapply(mfit$model$var, model.matrix, data = newdat)
+
+  # bind these together for joint model specification
+  X_new <- do.call(cbind, Xs)
+  Z_new <- do.call(cbind, Zs[1:2])
+
+  # final model matrix defines the model for the correlation
+  G_new <- Zs[[3]]
+
+  # construct parameter matrices
+  if(n == 1){
+
+  }
+
+}
+
+
+# helper functions ---------------------------
+
+
+make_parmat <- function(P, theta_1, theta_2){
+
+  B <- matrix(data = 0, nrow = sum(P), ncol = 2)
+  B[1:P[1], 1] <- theta_1
+  B[(P[1] + 1):sum(P), 2] <- theta_2
+
+}
+
+
+
+
 
