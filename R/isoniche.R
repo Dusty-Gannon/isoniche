@@ -118,6 +118,10 @@ construct_ellipses <- function(mfit, newdat, n = 1){
     varnames,
     as.vector(sapply(mfit$model$var, all.vars))
   )
+  if(is.list(varnames)){
+    tokeep <- !sapply(varnames, function(x, a = character(0)){identical(x, a)})
+    varnames <- varnames[tokeep]
+  }
   if(any(!(unique(varnames) %in% names(newdat)))){
     stop("newdat must contain columns for all the variables used to fit the model.\n")
   }
@@ -173,17 +177,7 @@ construct_ellipses <- function(mfit, newdat, n = 1){
     )
 
     # make dfs for ellipses coords
-    dfs_new <- mapply(
-      function(mu, L, ones, xy_circ){
-        t(diag(mu) %*% ones + L %*% xy_circ)
-      },
-      mu_new, L_new,
-      MoreArgs = list(
-        ones = ones,
-        xy_circ = xy_circ
-      ),
-      SIMPLIFY = F
-    )
+    dfs_new <- ellipse_df_list(mu_new, L_new, ones, xy_circ)
 
     # make sure the names line up
     dfs_new <- lapply(dfs_new, `colnames<-`, resp_names)
@@ -227,6 +221,81 @@ construct_ellipses <- function(mfit, newdat, n = 1){
       function(i, post_draws){as.double(post_draws$gamma[i, ])},
       post_draws
     )
+
+    # for each row of newdat and each set of params, create a mean and
+    # lower Cholesky factor
+    mu_new <- lapply(
+      B_list,
+      function(B, X_new){
+        lapply(
+          1:nrow(X_new),
+          function(i, X_new, B){
+            as.double(X_new[i, ] %*% B)
+          },
+          X_new = X_new, B = B
+        )
+      },
+      X_new = X_new
+    )
+    L_new <- mapply(
+      function(Z, Zeta, G, gamma, newdat){
+        lapply(
+          1:nrow(newdat),
+          function(i, Z, Zeta, G, gamma){
+            s <- exp(as.double(Z[i, ] %*% Zeta))
+            rho <- 2 * plogis(as.double(G[i, ] %*% gamma)) - 1
+            return(make_L2d(rho, s))
+          },
+          Z, Zeta, G, gamma
+        )
+      },
+      Zeta_list, gamma_list,
+      MoreArgs = list(
+        Z = Z_new, G = G_new, newdat = newdat
+      ),
+      SIMPLIFY = F
+    )
+
+    # Now, for each set of params, create a list of dfs
+    # defining the plotting dataframes for each row of newdat
+    dfs_list <- mapply(
+      ellipse_df_list,
+      mu_new, L_new,
+      MoreArgs = list(
+        ones, xy_circ
+      ),
+      SIMPLIFY = F
+    )
+
+    # make sure column names align
+    dfs_list <- lapply(
+      dfs_list,
+      function(x, resp_names){
+        lapply(x, `colnames<-`, resp_names)
+      },
+      resp_names
+    )
+
+    # construct one giant df
+    row_reps <- rep(rep(1:nrow(newdat), each = 100), n)
+    df_full <- as.data.frame(newdat[row_reps, ])
+    names(df_full) <- names(newdat)
+    df_full$draw_id <- factor(rep(draws, each = 100 * nrow(newdat)))
+    df_full$ellipse_id <- factor(rep(1:(n * nrow(newdat)), each = 100))
+
+    dfs_unlist1 <- lapply(
+      dfs_list,
+      Reduce,
+      f = rbind
+    )
+
+    return(
+      cbind(
+        df_full,
+        Reduce(rbind, dfs_unlist1)
+      )
+    )
+
   }
 }
 
@@ -256,7 +325,19 @@ make_parmat <- function(P, theta_1, theta_2){
 
 }
 
-
+ellipse_df_list <- function(mu_new, L_new, ones, xy_circ){
+  mapply(
+    function(mu, L, ones, xy_circ){
+      t(diag(mu) %*% ones + L %*% xy_circ)
+    },
+    mu_new, L_new,
+    MoreArgs = list(
+      ones = ones,
+      xy_circ = xy_circ
+    ),
+    SIMPLIFY = F
+  )
+}
 
 
 

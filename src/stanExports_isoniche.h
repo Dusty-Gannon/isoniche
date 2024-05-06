@@ -33,7 +33,7 @@ static int current_statement_begin__;
 stan::io::program_reader prog_reader__() {
     stan::io::program_reader reader;
     reader.add_event(0, 0, "start", "model_isoniche");
-    reader.add_event(84, 82, "end", "model_isoniche");
+    reader.add_event(77, 75, "end", "model_isoniche");
     return reader;
 }
 #include <stan_meta_header.hpp>
