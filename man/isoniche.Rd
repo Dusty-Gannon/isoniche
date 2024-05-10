@@ -30,9 +30,8 @@ in isotopic niche comparisons.
 }
 \examples{
 
-library(rstan)
-library(tidyverse)
 library(isoniche)
+# library(dplyr)
 set.seed(9986)
 
 # simulating some example data
