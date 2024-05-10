@@ -17,7 +17,7 @@
 #'
 #' @return A fitted model object from the \pkg{rstan} package.
 #' @export
-#' @examples /inst/examples/isoniche_eg.R
+#' @example /inst/examples/isoniche_eg.R
 #'
 isoniche <- function(mean, var, data, ...){
 
@@ -112,7 +112,7 @@ isoniche <- function(mean, var, data, ...){
 #' @importFrom stats formula model.matrix
 #' @importFrom mvtnorm rmvnorm
 #' @export
-#' @examples /inst/examples/isoniche_eg.R
+#' @example /inst/examples/isoniche_eg.R
 #'
 construct_ellipses <- function(mfit, newdat, n = 1){
 

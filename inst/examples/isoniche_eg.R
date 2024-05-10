@@ -64,8 +64,7 @@ mfit <- isoniche(
     ~ grp,
     ~ grp
   ),
-  data = dat,
-  cores = 4
+  data = dat
 )
 
 # make new data for constructing ellipses
