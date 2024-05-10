@@ -1,7 +1,4 @@
 
-library(rstan)
-library(tidyverse)
-library(isoniche)
 set.seed(9986)
 
 # simulating some example data
