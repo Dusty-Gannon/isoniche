@@ -1,6 +1,7 @@
 
 library(isoniche)
-# library(dplyr)
+library(dplyr)
+library(ggplot2)
 set.seed(9986)
 
 # simulating some example data
@@ -24,6 +25,7 @@ x <- rnorm(200, sd = 2)
 mu_1 <- diag(c(0.1, 0.8)) %*% rbind(x[1:100], x[1:100])
 mu_2 <- diag(c(0.1, 0.8)) %*% rbind(x[101:200], x[101:200])
 
+
 y_1 <- sapply(
   1:100,
   function(i, mu, sigma){
@@ -41,7 +43,7 @@ y_2 <- sapply(
 ) %>% t()
 
 # construct the df
-dat <- as_tibble(rbind(y_1, y_2))
+dat <- data.frame(rbind(y_1, y_2))
 dat <- dat %>% mutate(
   grp = factor(rep(c(1,2), each = 100)),
   x = x
@@ -54,8 +56,8 @@ dat <- dat %>% mutate(
 # distribution per group
 mfit <- isoniche(
   mean = list(
-    V1 ~ grp + x,
-    V2 ~ grp + x
+    X1 ~ grp + x,
+    X2 ~ grp + x
   ),
   var = list(
     ~ grp,
@@ -72,9 +74,9 @@ newdat <- data.frame(
   x = rep(0, length(unique(dat$grp)))
 )
 
-plotdf <- construct_ellipses(mfit, newdat, n = 10)
+plotdf <- construct_ellipses(mfit, newdat, n = 50)
 
-ggplot(data = dat, aes(x = V1, y = V2, color = grp)) +
+ggplot(data = dat, aes(x = X1, y = X2, color = grp)) +
   geom_point() +
   geom_path(
     data = plotdf,

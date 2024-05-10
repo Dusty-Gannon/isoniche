@@ -16,8 +16,8 @@
 #' \code{thin}, \code{cores}, \code{control}. See \code{?rstan::sampling()} for more details.
 #'
 #' @return A fitted model object from the \pkg{rstan} package.
-#'
-#' @example /inst/examples/isoniche_eg.R
+#' @export
+#' @examples /inst/examples/isoniche_eg.R
 #'
 isoniche <- function(mean, var, data, ...){
 
@@ -109,7 +109,11 @@ isoniche <- function(mean, var, data, ...){
 #' @return A dataframe that can be used for plotting standard ellipses or calculating isotopic niche
 #' statistics.
 #'
+#' @importFrom stats formula model.matrix
+#' @importFrom mvtnorm rmvnorm
+#' @export
 #' @examples /inst/examples/isoniche_eg.R
+#'
 construct_ellipses <- function(mfit, newdat, n = 1){
 
   resp_names <- as.vector(sapply(mfit$model$mean, all.vars)[1, ])
@@ -170,7 +174,7 @@ construct_ellipses <- function(mfit, newdat, n = 1){
       1:nrow(newdat),
       function(i, Z_new, Zeta, G_new, gamma){
         s <- exp(as.double(Z_new[i, ] %*% Zeta))
-        rho <- 2 * plogis(as.double(G_new[i, ] %*% gamma)) - 1
+        rho <- 2 * stats::plogis(as.double(G_new[i, ] %*% gamma)) - 1
         return(make_L2d(rho, s))
       },
       Z_new, Zeta, G_new, gamma
@@ -243,7 +247,7 @@ construct_ellipses <- function(mfit, newdat, n = 1){
           1:nrow(newdat),
           function(i, Z, Zeta, G, gamma){
             s <- exp(as.double(Z[i, ] %*% Zeta))
-            rho <- 2 * plogis(as.double(G[i, ] %*% gamma)) - 1
+            rho <- 2 * stats::plogis(as.double(G[i, ] %*% gamma)) - 1
             return(make_L2d(rho, s))
           },
           Z, Zeta, G, gamma

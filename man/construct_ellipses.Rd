@@ -28,4 +28,5 @@ ellipses.
 }
 \examples{
 /inst/examples/isoniche_eg.R
+
 }
