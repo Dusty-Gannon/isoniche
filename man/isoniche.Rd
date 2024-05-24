@@ -116,5 +116,11 @@ ggplot(data = dat, aes(x = X1, y = X2, color = grp)) +
   theme_classic() +
   scale_color_manual(values = c("steelblue", "brown"))
 
+sea_post <- sea(mfit, newdat, n = 250)
+
+ggplot(sea_post, aes(x = sea)) +
+  geom_density(aes(fill = grp), alpha = 0.5, color = "grey") +
+  theme_classic() +
+  scale_fill_manual(values = c("steelblue", "brown"))
 
 }

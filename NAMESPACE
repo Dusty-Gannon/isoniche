@@ -2,6 +2,7 @@
 
 export(construct_ellipses)
 export(isoniche)
+export(sea)
 import(Rcpp)
 import(methods)
 importFrom(mvtnorm,rmvnorm)
