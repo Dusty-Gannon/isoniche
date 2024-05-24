@@ -53,7 +53,9 @@ isoniche <- function(mean, var, data, ...){
   G <- Zs[[3]]
 
   # extract y variables
-  ynames <- sapply(mean, all.vars)[1, ]
+  ynames <- sapply(mean, function(x){
+    all.vars(x)[1]
+  })
 
   # compile variables for stan
   datlist <- list(
@@ -116,11 +118,21 @@ isoniche <- function(mean, var, data, ...){
 #'
 construct_ellipses <- function(mfit, newdat, n = 1){
 
-  resp_names <- as.vector(sapply(mfit$model$mean, all.vars)[1, ])
-  varnames <- as.vector(sapply(mfit$model$mean, all.vars)[-1, ])
+  resp_names <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[1]
+    }
+  ))
+  varnames <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[-1]
+    }
+  ))
   varnames <- c(
     varnames,
-    as.vector(sapply(mfit$model$var, all.vars))
+    unlist(lapply(mfit$model$var, all.vars))
   )
   if(is.list(varnames)){
     tokeep <- !sapply(varnames, function(x, a = character(0)){identical(x, a)})
@@ -325,8 +337,18 @@ construct_ellipses <- function(mfit, newdat, n = 1){
 sea <- function(mfit, newdat, n = 250){
 
   # run some checks on the newdat object
-  resp_names <- as.vector(sapply(mfit$model$mean, all.vars)[1, ])
-  varnames <- as.vector(sapply(mfit$model$mean, all.vars)[-1, ])
+  resp_names <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[1]
+    }
+  ))
+  varnames <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[-1]
+    }
+  ))
   varnames <- c(
     varnames,
     as.vector(sapply(mfit$model$var, all.vars))
