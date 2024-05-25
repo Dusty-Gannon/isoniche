@@ -77,18 +77,21 @@ isoniche <- function(mean, var, data, ...){
     control = stan_vars$control
   )
 
-  return(
-    list(
-      fit = fit,
-      model = list(
-        mean = mean,
-        var = var
-      ),
-      data = list(
-        df = data,
-        datlist = datlist
-      )
+  # compile standard list for return
+  ret_obj <- list(
+    fit = fit,
+    model = list(
+      mean = mean,
+      var = var
+    ),
+    data = list(
+      df = data,
+      datlist = datlist
     )
+  )
+  class(ret_obj) <- "isoniche"
+  return(
+    ret_obj
   )
 
 }
