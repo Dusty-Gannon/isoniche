@@ -98,11 +98,288 @@ summary.isoniche <- function(mfit){
 }
 
 
-#
-# predict.isoniche <- function(mfit, newdat, summarize = FALSE){
-#
-# }
-#
+
+#' Predict method for isoniche objects
+#'
+#' This function can be used to create mean vectors and covariance matrices
+#' for groups or conditions specified in \code{newdat}, or create draws from
+#' the posterior predictive distribution for conditions specified in \code{newdat}.
+#'
+#' @param mfit Fitted isoniche model.
+#' @param newdat A dataframe specifyng the conditions for which to create the
+#' predictions or posterior draws for the mean vector and covariance matrix.
+#' @param n Number of draws from the posterior to take. If \code{n = 1}, then
+#' the marginal means for each parameter will be used to construct the mean vector
+#' and covariance matrix.
+#' @param summarize STILL NEED TO FINISH THIS PART
+#' @param type
+#' @param npp
+#'
+#' @return
+#' @export
+#'
+#' @examples
+predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "mean", npp = 250){
+  # first check names
+  resp_names <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[1]
+    }
+  ))
+  varnames <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[-1]
+    }
+  ))
+  varnames <- c(
+    varnames,
+    unlist(lapply(mfit$model$var, all.vars))
+  )
+  if(is.list(varnames)){
+    tokeep <- !sapply(varnames, function(x, a = character(0)){identical(x, a)})
+    varnames <- varnames[tokeep]
+  }
+  if(any(!(unique(varnames) %in% names(newdat)))){
+    stop("newdat must contain columns for all the variables used to fit the model.\n")
+  }
+
+  # construct new model matrices for prediction
+  rhs_mforms <- lapply(mfit$model$mean, rhs_form)
+  Xs <- lapply(rhs_mforms, model.matrix, data = newdat)
+  Zs <- lapply(mfit$model$var, model.matrix, data = newdat)
+
+  # bind these together for joint model specification
+  X_new <- do.call(cbind, Xs)
+  Z_new <- do.call(cbind, Zs[1:2])
+
+  # final model matrix defines the model for the correlation
+  G_new <- Zs[[3]]
+
+  # construct parameters
+  if(n == 1){
+    B <- make_parmat(
+      mfit$data$datlist$P,
+      rstan::summary(mfit$fit, pars = "beta_1")$summary[, "mean"],
+      rstan::summary(mfit$fit, pars = "beta_2")$summary[, "mean"]
+    )
+    Zeta <- make_parmat(
+      mfit$data$datlist$K,
+      rstan::summary(mfit$fit, pars = "zeta_1")$summary[, "mean"],
+      rstan::summary(mfit$fit, pars = "zeta_2")$summary[, "mean"]
+    )
+    gamma <- rstan::summary(mfit$fit, pars = "gamma")$summary[, "mean"]
+
+    # make means and covariances for each row of newdat
+    mu_new <- lapply(
+      1:nrow(newdat),
+      function(i, X_new, B, resp_names){
+        mu <- as.double(X_new[i, ] %*% B)
+        names(mu) <- resp_names
+        return(mu)
+      },
+      X_new, B, resp_names
+    )
+    Sigma_new <- lapply(
+      1:nrow(newdat),
+      function(i, Z_new, Zeta, G_new, gamma, resp_names){
+        s <- exp(as.double(Z_new[i, ] %*% Zeta))
+        rho <- 2 * stats::plogis(as.double(G_new[i, ] %*% gamma)) - 1
+        Sigma <- diag(s^2)
+        Sigma[1, 2] <- rho * prod(s)
+        Sigma[2, 1] <- rho * prod(s)
+        rownames(Sigma) <- resp_names
+        colnames(Sigma) <- resp_names
+        return(Sigma)
+      },
+      Z_new, Zeta, G_new, gamma, resp_names
+    )
+  }
+
+  # now the case with multiple draws from the posterior
+  if(n > 1){
+    # construct lists of parameter matrices
+    post_draws <- rstan::extract(mfit$fit)
+    draws <- sample(1:length(post_draws$lp__), size = n)
+    B_list <- lapply(
+      draws,
+      function(i, P, post_draws){
+        beta_1 <- as.double(post_draws$beta_1[i, ])
+        beta_2 <- as.double(post_draws$beta_2[i, ])
+        make_parmat(P, beta_1, beta_2)
+      },
+      P = mfit$data$datlist$P,
+      post_draws = post_draws
+    )
+    Zeta_list <- lapply(
+      draws,
+      function(i, P, post_draws){
+        zeta_1 <- as.double(post_draws$zeta_1[i, ])
+        zeta_2 <- as.double(post_draws$zeta_2[i, ])
+        make_parmat(P, zeta_1, zeta_2)
+      },
+      P = mfit$data$datlist$K,
+      post_draws = post_draws
+    )
+    gamma_list <- lapply(
+      draws,
+      function(i, post_draws){as.double(post_draws$gamma[i, ])},
+      post_draws
+    )
+
+    # for each row of newdat and each set of params, create a mean and
+    # covariance matrix
+    mu_new <- lapply(
+      B_list,
+      function(B, X_new){
+        lapply(
+          1:nrow(X_new),
+          function(i, X_new, B, resp_names){
+            mu <- as.double(X_new[i, ] %*% B)
+            names(mu) <- resp_names
+            return(mu)
+          },
+          X_new = X_new, B = B, resp_names
+        )
+      },
+      X_new = X_new
+    )
+
+    Sigma_new <- mapply(
+      function(Z, Zeta, G, gamma, newdat){
+        lapply(
+          1:nrow(newdat),
+          function(i, Z, Zeta, G, gamma, resp_names){
+            s <- exp(as.double(Z[i, ] %*% Zeta))
+            rho <- 2 * stats::plogis(as.double(G[i, ] %*% gamma)) - 1
+            Sigma <- diag(s^2)
+            Sigma[1, 2] <- rho * prod(s)
+            Sigma[2, 1] <- rho * prod(s)
+            rownames(Sigma) <- resp_names
+            colnames(Sigma) <- resp_names
+            return(Sigma)
+          },
+          Z, Zeta, G, gamma, resp_names
+        )
+      },
+      Zeta_list, gamma_list,
+      MoreArgs = list(
+        Z = Z_new, G = G_new, newdat = newdat
+      ),
+      SIMPLIFY = F
+    )
+  }
+
+  # return predictions
+  if(type == "mean" & n == 1){
+    res <- lapply(
+      1:nrow(newdat),
+      function(i, mu, Sigma, newdat){
+        return(list(
+          cond = newdat[i, ],
+          mu = as.double(mu[[i]]),
+          Sigma = Sigma[[i]]
+        ))
+      },
+      mu_new, Sigma_new, newdat
+    )
+  }
+
+  if(type == "mean" & n > 1){
+    # compile into output
+    res <- lapply(
+      1:nrow(newdat),
+      function(i, mu, Sigma, newdat){
+        retlist <- list(
+          cond = newdat[i, ],
+          mu = t(sapply(mu, function(x, i){x[[i]]}, i = i)),
+          Sigma = lapply(Sigma, function(x, i){x[[i]]}, i = i)
+        )
+      },
+      mu_new, Sigma_new, newdat
+    )
+    if(summarize){
+      res_sum1 <- lapply(
+        res,
+        function(x){
+          mu_sum <- data.frame(
+            param = paste("mu", colnames(x$mu), sep = "_"),
+            mean = colMeans(x$mu),
+            q025 = apply(x$mu, 2, stats::quantile, probs = 0.025),
+            q975 = apply(x$mu, 2, stats::quantile, probs = 0.975)
+          )
+          S_flat <- t(sapply(x$Sigma, as.vector))[, -2]
+          S_sum <- data.frame(
+            param = c(
+              paste0("var_", colnames(x$mu)[1]),
+              paste(c("cov", colnames(x$mu)), collapse = "_"),
+              paste0("var_", colnames(x$mu)[2])
+            ),
+            mean = colMeans(S_flat),
+            q025 = apply(S_flat, 2, stats::quantile, probs = 0.025),
+            q975 = apply(S_flat, 2, stats::quantile, probs = 0.975)
+          )
+          return(rbind(mu_sum, S_sum))
+        }
+      )
+      res_sum2 <- lapply(
+        1:length(res),
+        function(i, res_sum1){
+          res[[i]]$cond[rep(1, nrow(res_sum1[[i]])), ]
+        },
+        res_sum1
+      )
+      res <- cbind(
+        Reduce(rbind, res_sum2),
+        Reduce(rbind, res_sum1)
+      )
+    }
+  }
+
+  # now do the case for posterior predictions
+  if(type == "response"){
+    if(n < 50 | npp < 50){
+      warning("Either n or npp is likely too small to capture the variability in the posterior predictive
+              distribution. Consider increasing.")
+    }
+    y_new <- lapply(
+      1:nrow(newdat),
+      function(i, mu_new, Sigma_new, n){
+        y_new <- mapply(
+          function(mu_new, Sigma_new, n, i){
+            mvtnorm::rmvnorm(n, mean = mu_new[[i]], sigma = Sigma_new[[i]])
+          },
+          mu_new, Sigma_new, n, i,
+          SIMPLIFY = F
+        )
+      },
+      mu_new, Sigma_new, n
+    )
+    y_new <- lapply(
+      y_new,
+      function(x){
+        Reduce(rbind, x)
+      }
+    )
+
+    # compile results
+    res <- lapply(
+      1:nrow(newdat),
+      function(i, y_new){
+        list(
+          cond = newdat[i, ],
+          y_new = y_new[[i]]
+        )
+      },
+      y_new
+    )
+  }
+
+  return(res)
+
+}
+
 
 
 
