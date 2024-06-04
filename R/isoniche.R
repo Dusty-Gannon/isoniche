@@ -333,92 +333,28 @@ construct_ellipses <- function(mfit, newdat, n = 1){
 #'
 #' @return A dataframe that can be used for plotting posterior SEAs or computing summary statistics.
 #'
-#' @importFrom stats formula model.matrix
-#' @importFrom mvtnorm rmvnorm
 #' @export
 #' @example /inst/examples/isoniche_eg.R
 sea <- function(mfit, newdat, n = 250){
 
-  # run some checks on the newdat object
-  resp_names <- unlist(lapply(
-    mfit$model$mean,
+  preds <- predict.isoniche(mfit, newdat, n)
+
+  draws_sea <- lapply(
+    preds,
     function(x){
-      all.vars(x)[1]
-    }
-  ))
-  varnames <- unlist(lapply(
-    mfit$model$mean,
-    function(x){
-      all.vars(x)[-1]
-    }
-  ))
-  varnames <- c(
-    varnames,
-    as.vector(sapply(mfit$model$var, all.vars))
-  )
-  if(is.list(varnames)){
-    tokeep <- !sapply(varnames, function(x, a = character(0)){identical(x, a)})
-    varnames <- varnames[tokeep]
-  }
-  if(any(!(unique(varnames) %in% names(newdat)))){
-    stop("newdat must contain columns for all the variables used to fit the model.\n")
-  }
-  # construct new model matrices for prediction
-  rhs_mforms <- lapply(mfit$model$mean, rhs_form)
-  Zs <- lapply(mfit$model$var, model.matrix, data = newdat)
-
-  # bind these together for joint model specification
-  Z_new <- do.call(cbind, Zs[1:2])
-
-  # final model matrix defines the model for the correlation
-  G_new <- Zs[[3]]
-
-  # construct posterior draws for covariance matrices
-  post_draws <- rstan::extract(mfit$fit)
-  draws <- sample(1:length(post_draws$lp__), size = n)
-  Zeta_list <- lapply(
-    draws,
-    function(i, P, post_draws){
-      zeta_1 <- as.double(post_draws$zeta_1[i, ])
-      zeta_2 <- as.double(post_draws$zeta_2[i, ])
-      make_parmat(P, zeta_1, zeta_2)
-    },
-    P = mfit$data$datlist$K,
-    post_draws = post_draws
-  )
-  gamma_list <- lapply(
-    draws,
-    function(i, post_draws){as.double(post_draws$gamma[i, ])},
-    post_draws
-  )
-
-  sea_new <- mapply(
-    function(Z, Zeta, G, gamma, newdat){
-      lapply(
-        1:nrow(newdat),
-        function(i, Z, Zeta, G, gamma){
-          s <- exp(as.double(Z[i, ] %*% Zeta))
-          rho <- 2 * stats::plogis(as.double(G[i, ] %*% gamma)) - 1
-          Omeg <- diag(nrow = 2)
-          Omeg[upper.tri(Omeg, diag = F)] <- rho
-          Omeg[lower.tri(Omeg, diag = F)] <- rho
-          S <- diag(s) %*% Omeg %*% diag(s)
-          lambda <- eigen(S, only.values = T)
-          return(pi * prod(sqrt(lambda$values)))
-        },
-        Z, Zeta, G, gamma
+      sapply(
+        x$Sigma,
+        FUN = function(s){
+          lambda <- eigen(s, only.values = TRUE)
+          pi * prod(sqrt(lambda$values))
+        }
       )
-    },
-    Zeta_list, gamma_list,
-    MoreArgs = list(
-      Z = Z_new, G = G_new, newdat = newdat
-    ),
-    SIMPLIFY = F
+    }
   )
 
   # convert to dataframe
-  return_df <- newdat[rep(1:nrow(newdat), n), ]
-  return_df$sea <- unlist(sea_new)
+  return_df <- newdat[rep(1:nrow(newdat), each = n), ]
+  return_df$sea <- unlist(draws_sea)
   return(return_df)
 
 }

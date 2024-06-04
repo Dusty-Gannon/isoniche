@@ -111,15 +111,23 @@ summary.isoniche <- function(mfit){
 #' @param n Number of draws from the posterior to take. If \code{n = 1}, then
 #' the marginal means for each parameter will be used to construct the mean vector
 #' and covariance matrix.
-#' @param summarize STILL NEED TO FINISH THIS PART
-#' @param type
-#' @param npp
+#' @param summarize Logical indicating whether to summarize the draws from the posterior or
+#' posterior predictive distribution. If \code{TRUE}, the function will return a data frame
+#' summarizing the draws.
+#' @param type Character of either \code{"mean"} or \code{"response"}. If \code{"mean"}, the
+#' function will create draws from the posteriors of the means and variances of each row in
+#' \code{newdat}. If \code{"response"}, the function will create \code{npp} draws from the
+#' posterior predictive distribution for each of \code{n} draws from the posterior for each
+#' row of \code{newdat}.
+#' @param npp Number of draws from the posterior predictive distribution for each draw from
+#' the joint posterior. These can be used for posterior predictive checks of model assumptions.
 #'
-#' @return
+#' @importFrom stats model.matrix quantile formula
+#' @return Either a dataframe (when \code{summarize = TRUE}) or a list of \code{n} draws from the
+#' joint posterior for each row of \code{newdat}.
 #' @export
 #'
-#' @examples
-predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "mean", npp = 250){
+predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "mean", npp = 1){
   # first check names
   resp_names <- unlist(lapply(
     mfit$model$mean,
@@ -339,8 +347,8 @@ predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "m
 
   # now do the case for posterior predictions
   if(type == "response"){
-    if(n < 50 | npp < 50){
-      warning("Either n or npp is likely too small to capture the variability in the posterior predictive
+    if(n < 10){
+      warning("n may be too small to capture the variability in the posterior predictive
               distribution. Consider increasing.")
     }
     y_new <- lapply(
@@ -358,21 +366,39 @@ predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "m
     )
     y_new <- lapply(
       y_new,
-      function(x){
-        Reduce(rbind, x)
-      }
+      function(x, names){
+        mat <- Reduce(rbind, x)
+        colnames(mat) <- names
+        return(mat)
+      },
+      names = resp_names
     )
+
+    if(summarize){
+      y_new <- lapply(
+        y_new,
+        function(x){
+          df <- data.frame(
+            var = colnames(x),
+            mean = colMeans(x),
+            q.025 = apply(x, 2, stats::quantile, probs = 0.025),
+            q.1 = apply(x, 2, stats::quantile, probs = 0.1),
+            q.9 = apply(x, 2, stats::quantile, probs = 0.9),
+            q.975 = apply(x, 2, stats::quantile, probs = 0.975)
+          )
+          return(df)
+        }
+      )
+    }
 
     # compile results
     res <- lapply(
       1:nrow(newdat),
-      function(i, y_new){
-        list(
-          cond = newdat[i, ],
-          y_new = y_new[[i]]
-        )
+      function(i, y_new, newdat){
+        df <- newdat[rep(i, nrow(y_new[[i]])), ]
+        return(cbind(df, y_new[[i]]))
       },
-      y_new
+      y_new, newdat
     )
   }
 
