@@ -20,5 +20,29 @@ library(ggplot2)
 library(dplyr)
 ```
 
+This vignette illustrates some of the standard uses and the possibility of non-standard uses of the fitted model objects made possible by taking draws from the joint posterior distribution for the model parameters.
 
+## Loading data and fitting the model
+
+```{r}
+# load example data
+data("eg_data")
+
+# fit the model
+mfit <- isoniche(
+  mean = list(
+    X1 ~ grp + x,
+    X2 ~ grp + x
+  ),
+  var = list(
+    ~ grp,
+    ~ grp,
+    ~ grp
+  ),
+  data = eg_data,
+  cores = 4
+)
+```
+
+With the model fitted, we can check the model fit using something akin to a residuals plot.
 
