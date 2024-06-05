@@ -466,5 +466,105 @@ print.summary.isoniche <- function(sumobj, digits = 3){
 }
 
 
+#' Mean of posterior normalized residual distribution
+#'
+#' @param mfit Fitted isoniche object
+#'
+#' @return Matrix of posterior mean residuals, one column for each response
+#' variable.
+#' @export
+#'
+residuals.isoniche <- function(mfit){
+  # posteriors of fitted values
+  y_hat <- predict(mfit, newdat = mfit$data$df, n = 100)
+
+  mu <- lapply(
+    y_hat,
+    function(x){return(x$mu)}
+  )
+
+  # put y vecs into a list
+  y <- lapply(
+    1:nrow(mfit$data$datlist$y),
+    function(i, ymat){
+      return(as.double(ymat[i, ]))
+    },
+    ymat = mfit$data$datlist$y
+  )
+
+  # extract names of response variables
+  resp_names <- unlist(lapply(
+    mfit$model$mean,
+    function(x){
+      all.vars(x)[1]
+    }
+  ))
+
+  # compute inverse square root of covariance matrix
+  Ls <- lapply(
+    y_hat,
+    function(x){
+      lapply(
+        x$Sigma,
+        function(S){ solve(t(chol(S))) }
+      )
+    }
+  )
+
+  # get and normalize residuals
+  resids <- t(mapply(
+    function(y, mu, L_list){
+      res_i <- lapply(
+        1:length(L_list),
+        function(i, y, mu, L_list){
+          as.double(L_list[[i]] %*% (y - mu[i, ]))
+        },
+        y = y, mu = mu, L_list = L_list
+      )
+      # now summarize
+      res_i_hat <- colMeans(
+        Reduce(rbind, res_i)
+      )
+      return(res_i_hat)
+    },
+    y, mu, Ls
+  ))
+
+  colnames(resids) <- paste("res", resp_names, sep = "_")
+
+  return(resids)
+}
+
+
+#' Plot posterior means of residual distributions
+#'
+#' @param mfit Fitted isoniche object
+#'
+#' @return Multipanel plot of residuals. The first shows the bivariate residuals, which should
+#' be approximately spherical (i.e., be bivariate normal with mean zero and covariance matrix
+#' \eqn{I_2}). The next plots show qq plots for each dimension.
+#' @export
+#'
+plot.isoniche <- function(mfit){
+
+  resids <- residuals(mfit)
+
+  sd1 <- cbind(
+    cos(seq(0, 2 * pi, length.out = 100)),
+    sin(seq(0, 2 * pi, length.out = 100))
+  )
+
+  sd2 <- 2 * sd1
+
+  par(mfrow = c(2,2), mar = c(4,4,1,1))
+  plot(resids, xlab = colnames(resids)[1], ylab = colnames(resids)[2])
+  lines(sd1, col = "blue", lty = "dashed")
+  lines(sd2, col = "red", lty = "dashed")
+  qqnorm(resids[, 1], main = colnames(resids)[1])
+  abline(0, 1, col = "blue")
+  qqnorm(resids[, 2], main = colnames(resids)[2])
+  abline(0, 1, col = "blue")
+
+}
 
 
