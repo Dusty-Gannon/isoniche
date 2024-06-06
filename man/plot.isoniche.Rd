@@ -12,7 +12,7 @@
 \value{
 Multipanel plot of residuals. The first shows the bivariate residuals, which should
 be approximately spherical (i.e., be bivariate normal with mean zero and covariance matrix
-\eqn{I_n}). The next plots show qq plots for each dimension.
+\eqn{I_2}). The next plots show qq plots for each dimension.
 }
 \description{
 Plot posterior means of residual distributions

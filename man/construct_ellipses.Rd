@@ -4,7 +4,7 @@
 \alias{construct_ellipses}
 \title{Construct standard ellipses from fitted model}
 \usage{
-construct_ellipses(mfit, newdat, n = 1)
+construct_ellipses(mfit, newdat, n = 1, sds = 1)
 }
 \arguments{
 \item{mfit}{Fitted isoniche model object.}
@@ -16,6 +16,9 @@ fit the model.}
 The default is 1, which results in ellipses being drawn from the marginal means of the posterior
 of each parameter. If \code{n} > 1, then the function will draw \code{n} samples from the joint
 posterior and construct a standard ellipse for each set of parameters.}
+
+\item{sds}{Multiple of standard deviations to use for ellipses. For standard ellipses, \code{sds = 1},
+For approximate 95\% ellipses, you could use \code{sds = 2}.}
 }
 \value{
 A dataframe that can be used for plotting standard ellipses or calculating isotopic niche
