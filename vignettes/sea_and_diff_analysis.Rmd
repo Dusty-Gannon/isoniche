@@ -57,11 +57,11 @@ plot(mfit)
 
 In the upper-left, the residuals are plotted in 2 dimensions and should be approximately spherical. If there are clear clusters of points, especially clusters of points that fall outside the red line, which is an approximate 95\% contour line, then there may be additional structure in the data not accounted for in the model. The other two plots are standard qq plots for the residuals in each dimension.
 
-The model fits well (as it should, considering I know how the data were generated!), so we can move on with the analysis, but you can also get the residuals from the fitted model and add them to the original data for additional plotting (e.g., residuals against missing covariates, like using color to different years over which the data were collected). For more details, see `?residuals.isoniche()`.
+The model fits well (as it should, considering I know how the data were generated!), so we can move on with the analysis, but you can also get the residuals from the fitted model and add them to the original data for additional plotting (e.g., residuals against missing covariates, like using color to differentiate years over which the data were collected). For more details, see `?residuals.isoniche()`.
 
 ## Plotting ellipses
 
-We can create standard ellipse plots using `isoniche::construct_ellipses()` combined with the `ggplot` function `geom_path()`. The `construct_ellipses()` function takes in a new data frame that lists out the conditions for which we want to plot standard ellipses. For example, the data used the fit the model has two groups, groups 1 and 2, and one continuous control variable, `x`. We therefore need to provide which group(s) for which we want to draw ellipses and what value `x` should take. Here is a simple example of drawing an approximate 95% ellipse.
+We can create standard ellipse plots using `isoniche::construct_ellipses()` combined with the `ggplot` function `geom_path()`. The `construct_ellipses()` function takes in a new data frame that lists out the conditions for which we want to plot standard ellipses. For example, the data used to the fit the model has two groups, groups 1 and 2, and one continuous control variable, `x`. We therefore need to provide information on which group(s) for which we want to draw ellipses and what value `x` should take. Here is a simple example of drawing an approximate 95% ellipse. Different ellipse sizes can be specified by supplying a multiplier, `sds`, based on a quantile of a $\chi^2_1$ distribution.
 
 ```{r}
 # make new data for constructing ellipses
@@ -70,16 +70,9 @@ newdat <- data.frame(
   x = rep(0, length(unique(eg_data$grp)))
 )
 
-# set sds to 2 to plot 2sds out from mean
-ell_df1 <- construct_ellipses(mfit, newdat, sds = 2)
-
-sea_data <- sea(mfit, newdat, 250)
-
-
-ggplot(sea_data, aes(x=grp, y = sea)) +
-  geom_boxplot()
+# set sds to qchisq(0.95, 1)
+ell_df1 <- construct_ellipses(mfit, newdat, sds = 3.84)
   
-
 # plot
 ggplot(data = eg_data, aes(x = X1, y = X2, color = grp)) +
   geom_point() +
@@ -93,6 +86,102 @@ ggplot(data = eg_data, aes(x = X1, y = X2, color = grp)) +
 
 ```
 
+Note that, because there is a continuous control variable in the model and we simply set this to `x = 0` for plotting, the plotted ellipses may not appear to encapsulate $\approx 95\%$ of the observed data. 
+
+## Comparing standard ellipse areas
+
+Package `isoniche` provides a function to estimate the area of the standard ellipse (SEA) for supplied conditions. As with the `construct_ellipses()` function, function `sea()` takes the fitted model object and a set of conditions for which we want to estimate the SEA supplied as a dataframe. Below is an example using the same dataframe as above (`newdat`).
+
+```{r}
+# draw 250 samples from the posterior of the SEA
+# for each group, with x = 0
+sea_df <- sea(mfit, newdat, n = 250)
+
+str(sea_df)
+```
+
+The function returns a dataframe with columns from `newdat` where each row in `newdat` is repeated `n` times and given a draw from the posterior distribution of SEA. This function was created with `ggplot2` in mind to make plotting the posteriors easy. For example:
+
+```{r}
+# plot the posterior SEA for each group
+ggplot(sea_df, aes(x = sea, fill = grp)) +
+  geom_density(color = "grey", alpha = 0.7) +
+  theme_classic() +
+  scale_fill_manual(values = c("steelblue", "brown"))
+```
+
+However, we can also use `dplyr::pivot_wider()` to make it easy to construct posteriors of custom statistics. For example, the plot below shows the posterior distribution of the difference in SEA between the groups (group 1 minus group 2).
+
+```{r}
+# pivot to wider format
+sea_wide <- sea_df |> tidyr::pivot_wider(
+  id_cols = draw_id,
+  names_from = grp,
+  values_from = sea
+)
+
+# give better column names
+names(sea_wide)[2:3] <- c("grp1", "grp2")
+
+sea_wide <- sea_wide |> dplyr::mutate(
+  grp1_minus_grp2 = grp1 - grp2
+)
+
+ggplot(sea_wide, aes(x = grp1_minus_grp2)) +
+  geom_density(fill = "white") +
+  theme_classic() +
+  xlab("") +
+  ggtitle("Posterior density of Group 1 SEA\nminus Group 2 SEA")
+```
+
+From the `sea_wide` object, we can also compute things like the posterior probability that Group 1's SEA is larger than Group 2's SEA, given a fixed value for `x`.
+
+```{r}
+mean(sea_wide$grp1_minus_grp2 > 0)
+```
+
+## Custom posterior calculations
+
+The package also comes with `predict()` methods that are similar to the predict methods of other linear model packages. The function takes a fitted model and newdata over which to predict, but also includes options to take draws from the posterior distribution of the mean vector and covariance matrix of the supplied conditions in `newdat` or take draws from the *posterior predictive distribution*,
+
+$$
+p(\tilde{\bf y}_i | {\bf y}, \tilde{\bf x}_i) = \int p(\tilde{\bf y}_i | \boldsymbol \theta, \tilde{\bf x}_i)p({\boldsymbol \theta} | {\bf y})d\boldsymbol \theta
+$$
+
+where $\boldsymbol \theta$ is the parameter vector, $\tilde{\bf y}_i$ is a new observation given new conditions encoded in $\tilde{\bf x}_i$, and $p(\boldsymbol \theta | {\bf y})$ is the posterior distribution of $\boldsymbol \theta$.
+
+### Posterior of the distance between centroids
+
+Below is an example of using the `predict()` method to estimate the posterior distribution of the distance between the centroids of groups 1 and 2, given a common value for `x`.
+
+```{r}
+post_means <- predict(mfit, newdat, type = "mean", n = 250)
+head(post_means)
+```
+
+In return, we get a list of lists. The outer level of the list has one element per row of `newdat`. Within this level, we have the row of `newdat` (the first condition), given by `post_means[[1]]$cond`, a matrix of mean vectors with `n` rows (draws from the posterior) and two columns, one for each response variable. This is given by `post_means[[1]]$mu`. Finally, we get a list of covariance matrices, one for each of `n` draws from the joint posterior of the parameters. The draws are always from the joint posterior, meaning the parameter values used to construct the first element of `post_means[[1]]$Sigma` come from the same draw from the joint posterior as those used to construct `post_means[[2]]$Sigma`. With this structure, we can do operations to each `n` draws across conditions to estimate posteriors of custom statistics. 
+
+```{r}
+# create distance function for 2d space
+dist_2d <- function(x1, x2){
+  sqrt(sum( (x1 - x2)^2 ))
+}
+
+dist_post <- sapply(
+  1:250, # because I used 250 draws from posterior
+  function(i, mat1, mat2){
+    dist_2d(mat1[i, ], mat2[i, ])
+  },
+  mat1 = post_means[[1]]$mu,
+  mat2 = post_means[[2]]$mu
+)
+
+# plot approximate posterior
+hist(dist_post, breaks = 20)
+
+```
+
+### $P(X_1, X_2 > 1 | x = \{0, 0.5, 1\})$
 
 
 

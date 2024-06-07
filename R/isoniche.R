@@ -357,6 +357,7 @@ sea <- function(mfit, newdat, n = 250){
   # convert to dataframe
   return_df <- newdat[rep(1:nrow(newdat), each = n), ]
   return_df$sea <- unlist(draws_sea)
+  return_df$draw_id <- paste("s", rep(1:n, nrow(newdat)), sep = "_")
   return(return_df)
 
 }
