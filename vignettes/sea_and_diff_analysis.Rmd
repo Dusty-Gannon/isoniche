@@ -10,7 +10,9 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 5,
+  fig.height = 4
 )
 ```
 
@@ -51,7 +53,7 @@ $$
 $$
 be the length two vector of residuals for observation $i$. If the model fits well, the means of these distributions should be normal with mean zero and variance ${\bf I}_2$. `isoniche` has a default plotting function to create residual plots for the fitted model.
 
-```{r}
+```{r fig.height=4, fig.width=5}
 plot(mfit)
 ```
 
@@ -102,7 +104,7 @@ str(sea_df)
 
 The function returns a dataframe with columns from `newdat` where each row in `newdat` is repeated `n` times and given a draw from the posterior distribution of SEA. This function was created with `ggplot2` in mind to make plotting the posteriors easy. For example:
 
-```{r}
+```{r out.width='60%'}
 # plot the posterior SEA for each group
 ggplot(sea_df, aes(x = sea, fill = grp)) +
   geom_density(color = "grey", alpha = 0.7) +
