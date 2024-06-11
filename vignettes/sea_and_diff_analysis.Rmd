@@ -24,15 +24,15 @@ This vignette illustrates some of the standard uses and the possibility of non-s
 
 ## Loading data and fitting the model
 
-```{r}
+```{r message=FALSE}
 # load example data
 data("eg_data")
 
 # fit the model
 mfit <- isoniche(
   mean = list(
-    X1 ~ grp + x,
-    X2 ~ grp + x
+    y1 ~ grp + x,
+    y2 ~ grp + x
   ),
   var = list(
     ~ grp,
@@ -61,7 +61,7 @@ The model fits well (as it should, considering I know how the data were generate
 
 ## Plotting ellipses
 
-We can create standard ellipse plots using `isoniche::construct_ellipses()` combined with the `ggplot` function `geom_path()`. The `construct_ellipses()` function takes in a new data frame that lists out the conditions for which we want to plot standard ellipses. For example, the data used to the fit the model has two groups, groups 1 and 2, and one continuous control variable, `x`. We therefore need to provide information on which group(s) for which we want to draw ellipses and what value `x` should take. Here is a simple example of drawing an approximate 95% ellipse. Different ellipse sizes can be specified by supplying a multiplier, `sds`, based on a quantile of a $\chi^2_1$ distribution.
+We can create standard ellipse plots using `isoniche::construct_ellipses()` combined with the `ggplot` function `geom_path()`. The `construct_ellipses()` function takes in a new data frame that lists out the conditions for which we want to plot standard ellipses. For example, the data used to the fit the model has two groups, groups 1 and 2, and one continuous control variable, $x$. We therefore need to provide information on which group(s) for which we want to draw ellipses and what value $x$ should take. Here is a simple example of drawing an approximate 95% ellipse. Different ellipse sizes can be specified by supplying a multiplier, `sds`, based on a quantile of a $\chi^2_1$ distribution.
 
 ```{r}
 # make new data for constructing ellipses
@@ -74,7 +74,7 @@ newdat <- data.frame(
 ell_df1 <- construct_ellipses(mfit, newdat, sds = 3.84)
   
 # plot
-ggplot(data = eg_data, aes(x = X1, y = X2, color = grp)) +
+ggplot(data = eg_data, aes(x = y1, y = y2, color = grp)) +
   geom_point() +
   geom_path(
     data = ell_df1,
@@ -111,6 +111,8 @@ ggplot(sea_df, aes(x = sea, fill = grp)) +
 ```
 
 However, we can also use `dplyr::pivot_wider()` to make it easy to construct posteriors of custom statistics. For example, the plot below shows the posterior distribution of the difference in SEA between the groups (group 1 minus group 2).
+
+
 
 ```{r}
 # pivot to wider format
@@ -156,10 +158,9 @@ Below is an example of using the `predict()` method to estimate the posterior di
 
 ```{r}
 post_means <- predict(mfit, newdat, type = "mean", n = 250)
-head(post_means)
 ```
 
-In return, we get a list of lists. The outer level of the list has one element per row of `newdat`. Within this level, we have the row of `newdat` (the first condition), given by `post_means[[1]]$cond`, a matrix of mean vectors with `n` rows (draws from the posterior) and two columns, one for each response variable. This is given by `post_means[[1]]$mu`. Finally, we get a list of covariance matrices, one for each of `n` draws from the joint posterior of the parameters. The draws are always from the joint posterior, meaning the parameter values used to construct the first element of `post_means[[1]]$Sigma` come from the same draw from the joint posterior as those used to construct `post_means[[2]]$Sigma`. With this structure, we can do operations to each `n` draws across conditions to estimate posteriors of custom statistics. 
+In return, we get a list of lists. The outer level of the list has one element per row of `newdat`. Within this level, we have the row of `newdat` (the first condition), given by `post_means[[1]]$cond`, a matrix of mean vectors with `n` rows (draws from the posterior) and two columns, one for each response variable. This is given by `post_means[[1]]$mu`. Finally, we get a list of covariance matrices, one for each of `n` draws from the joint posterior of the parameters. The draws are always from the joint posterior, meaning the parameter values used to construct the first element of `post_means[[1]]$Sigma` come from the same draw from the joint posterior as those used to construct `post_means[[2]]$Sigma` since the first level of the list indexes the conditions specified in `newdat`. With this structure, we can do operations to each of `n` draws across conditions to estimate posteriors of custom statistics. 
 
 ```{r}
 # create distance function for 2d space
@@ -167,6 +168,7 @@ dist_2d <- function(x1, x2){
   sqrt(sum( (x1 - x2)^2 ))
 }
 
+# compute distance between centroids
 dist_post <- sapply(
   1:250, # because I used 250 draws from posterior
   function(i, mat1, mat2){
@@ -181,10 +183,38 @@ hist(dist_post, breaks = 20)
 
 ```
 
-### $P(X_1, X_2 > 1 | x = \{0, 0.5, 1\})$
+### $P(Y_1, Y_2 > 0 | x = \{0, 0.5, 1\})$
 
+Now, let's estimate the posterior predictive probability that both response variables, $Y_1$ and $Y_2$, are greater than 1 given three different values of the control variable $x$, for group 1. We will again construct a dataframe to specify the conditions to which we want to predict, then use the `predict()` method with the `type = "response"` option to specify we want draws from the posterior predictive distribution. 
 
+```{r}
+# construct new dataframe
+newdat2 <- data.frame(
+  grp = rep(unique(eg_data$grp)[1], 3),
+  x = c(0, 0.5, 1)
+)
 
+# draw samples from the ppd
+pg1 <- predict(mfit, newdat2, type = "response", n = 500, npp = 1)
+
+```
+
+What we get back in this case is a list with one element per condition (row) specified in `newdat2`. Each element in the list is a dataframe with `n * npp` rows, where `n` specifies the number of draws from the posterior distribution and `npp` is the number of draws from the posterior predictive distribution for each draw from the posterior (this is usually set to 1). The columns in the dataframe match the original data:
+
+```{r}
+head(pg1[[1]])
+```
+
+Summarizing over each dataframe gives the posterior predictive probability for each value of $x$.
+
+```{r}
+sapply(
+  pg1,
+  function(df){
+    mean(df$y1 > 0 & df$y2 > 0)
+  }
+)
+```
 
 
 

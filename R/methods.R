@@ -353,16 +353,16 @@ predict.isoniche <- function(mfit, newdat, n = 250, summarize = FALSE, type = "m
     }
     y_new <- lapply(
       1:nrow(newdat),
-      function(i, mu_new, Sigma_new, n){
+      function(i, mu_new, Sigma_new, npp){
         y_new <- mapply(
-          function(mu_new, Sigma_new, n, i){
-            mvtnorm::rmvnorm(n, mean = mu_new[[i]], sigma = Sigma_new[[i]])
+          function(mu_new, Sigma_new, npp, i){
+            mvtnorm::rmvnorm(npp, mean = mu_new[[i]], sigma = Sigma_new[[i]])
           },
-          mu_new, Sigma_new, n, i,
+          mu_new, Sigma_new, npp, i,
           SIMPLIFY = F
         )
       },
-      mu_new, Sigma_new, n
+      mu_new, Sigma_new, npp
     )
     y_new <- lapply(
       y_new,
