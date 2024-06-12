@@ -362,6 +362,59 @@ sea <- function(mfit, newdat, n = 250){
 
 }
 
+
+ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
+
+
+
+}
+
+
+ellipse_overlap <- function(mu1, mu2, Sigma1, Sigma2, q = 1){
+
+  # first invert covariance matrices
+  A1 <- solve(Sigma1)
+  A2 <- solve(Sigma2)
+
+  b1 <- -mu1
+  b2 <- -mu2
+
+  # next find intersections of ellipses
+
+  # define quartic function in y
+  quart_in_y <- function(x, u){
+    u[1] + u[2] * x + u[3] * x^2 + u[4] * x^3 + u[5] * x^4
+  }
+
+  # defining v
+  v <- vector("double", length = 11)
+  v[1] <- 2 * (A1[1,1] * A2[1,2] - A2[1,1] * A1[1,2])
+  v[2] <- A1[1,1] * A2[2,2] - A2[1,1] * A1[2,2]
+  v[3] <- A1[1,1] * b2[1] - A2[1,1] * b1[1]
+  v[4] <- A1[1,1] * b2[2] - A2[1,1] * b1[2]
+  v[5] <- q * (A1[1,1] - A2[1,1])
+  v[6] <- 2 * (A1[1,2] * A2[2,2] - A2[1,2] * A1[2,2])
+  v[7] <- 2 * (A1[1,2] * b2[2] - A2[1,2] * b1[2])
+  v[8] <- 2 * q * (A1[1,2] - A2[1, 2])
+  v[9] <- A1[2,2] * b2[1] - A2[2,2] * b1[2]
+  v[10] <- b1[1] * b2[2] - b2[1] * b1[2]
+  v[11] <- q * (b1[1] - b2[1])
+
+  # now define u based on v
+  u <- double(5)
+  u[1] <- v[3] * v[11] - v[5]^2
+  u[2] <- v[1] * v[11] + v[3] * (v[8] + v[10]) - 2 * v[4] * v[5]
+  u[3] <- v[1] * (v[8] + v[10]) + v[3] * (v[7] - v[9]) - v[4]^2 - 2 * v[2] * v[5]
+  u[4] <- v[1] * (v[7] - v[9]) + v[3] * v[6] - 2 * v[2] * v[4]
+  u[5] <- v[1] * v[6] - v[2]^2
+
+  # now find roots of the quartic
+  y_star <- uniroot(quart_in_y, interval = c(-2, 2), u = u)
+
+
+}
+
+
 # helper functions ---------------------------
 
 rhs_form <- function(form){
