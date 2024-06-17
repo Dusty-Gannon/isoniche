@@ -121,7 +121,7 @@ isoniche <- function(mean, var, data, ...){
 #' @export
 #' @example /inst/examples/isoniche_eg.R
 #'
-construct_ellipses <- function(mfit, newdat, n = 1, sds = 1){
+construct_ellipses <- function(mfit, newdat, n = 1, q = 1){
 
   resp_names <- unlist(lapply(
     mfit$model$mean,
@@ -162,7 +162,7 @@ construct_ellipses <- function(mfit, newdat, n = 1, sds = 1){
   xy_circ <- rbind(
     cos(seq(0, 2 * pi, length.out = 100)),
     sin(seq(0, 2 * pi, length.out = 100))
-  ) * sds
+  ) * sqrt(q)
   ones <- matrix(data = 1, 2, 100)
 
   if(n == 1){
@@ -365,6 +365,34 @@ sea <- function(mfit, newdat, n = 250){
 
 ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
 
+  if(!(is.data.frame(df_pairs) | is.list(df_pairs))){
+    stop("Unrecognized input type for df_pairs.
+         Please provide a data.frame or a list of data.frames each with 2 rows defining the comparisons.\n")
+  }
+  # convert dataframe into list of pairs
+  if(is.data.frame(df_pairs)){
+    n_conds <- nrow(df_pairs)
+    pairs_list <- vector(mode = "list")
+    for(i in 1:(n_conds - 1)){
+      for(j in (i + 1):n_conds){
+        pairs_list <- c(
+          pairs_list,
+          list(df_pairs[c(i, j), ])
+        )
+      }
+    }
+  } else{
+    pairs_list <- df_pairs
+  }
+
+  preds_pairs <- lapply(
+    pairs_list,
+    function(df, mfit, n){
+      predict(mfit, df, n, type = "mean")
+    },
+    mfit, n
+  )
+
 
 
 }
@@ -455,6 +483,27 @@ ellipse_df_list <- function(mu_new, L_new, ones, xy_circ){
 }
 
 
+ellipse_overlap_single_mc <- function(mu1, mu2, Sigma1, Sigma2, q, npp = 500){
+
+  # first simulate some data
+  y_sim <- mvtnorm::rmvnorm(npp, mu1, Sigma1)
+
+  ones <- matrix(1, ncol = ncol(y_sim), nrow = nrow(y_sim))
+
+  test_1 <- diag((y_sim - ones %*% diag(mu1)) %*% solve(Sigma1) %*% (t(y_sim) - diag(mu1) %*% t(ones)))
+  test_2 <- diag((y_sim - ones %*% diag(mu2)) %*% solve(Sigma2) %*% (t(y_sim) - diag(mu2) %*% t(ones)))
+
+  sims_in_1 <- test_1 < q
+
+  sims_in_2 <- test_2 < q
+
+  # now find which sims are in both
+  sims_in_both <- sims_in_1 & sims_in_2
+
+  # get area of first ellipse
+  lambda <- eigen(Sigma2)
+  area1 <- pi * prod(sqrt(lambda$values)) * q
 
 
+}
 

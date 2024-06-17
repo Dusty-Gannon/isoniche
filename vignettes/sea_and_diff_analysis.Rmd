@@ -73,7 +73,7 @@ newdat <- data.frame(
 )
 
 # set sds to qchisq(0.95, 1)
-ell_df1 <- construct_ellipses(mfit, newdat, sds = 3.84)
+ell_df1 <- construct_ellipses(mfit, newdat, q = qchisq(0.95, df = 2))
   
 # plot
 ggplot(data = eg_data, aes(x = y1, y = y2, color = grp)) +
@@ -219,5 +219,10 @@ sapply(
 ```
 
 
+## Ellipse overlap
+
+```{r}
+
+```
 
 
