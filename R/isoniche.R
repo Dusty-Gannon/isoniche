@@ -398,49 +398,49 @@ ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
 }
 
 
-ellipse_overlap <- function(mu1, mu2, Sigma1, Sigma2, q = 1){
-
-  # first invert covariance matrices
-  A1 <- solve(Sigma1)
-  A2 <- solve(Sigma2)
-
-  b1 <- -mu1
-  b2 <- -mu2
-
-  # next find intersections of ellipses
-
-  # define quartic function in y
-  quart_in_y <- function(x, u){
-    u[1] + u[2] * x + u[3] * x^2 + u[4] * x^3 + u[5] * x^4
-  }
-
-  # defining v
-  v <- vector("double", length = 11)
-  v[1] <- 2 * (A1[1,1] * A2[1,2] - A2[1,1] * A1[1,2])
-  v[2] <- A1[1,1] * A2[2,2] - A2[1,1] * A1[2,2]
-  v[3] <- A1[1,1] * b2[1] - A2[1,1] * b1[1]
-  v[4] <- A1[1,1] * b2[2] - A2[1,1] * b1[2]
-  v[5] <- q * (A1[1,1] - A2[1,1])
-  v[6] <- 2 * (A1[1,2] * A2[2,2] - A2[1,2] * A1[2,2])
-  v[7] <- 2 * (A1[1,2] * b2[2] - A2[1,2] * b1[2])
-  v[8] <- 2 * q * (A1[1,2] - A2[1, 2])
-  v[9] <- A1[2,2] * b2[1] - A2[2,2] * b1[2]
-  v[10] <- b1[1] * b2[2] - b2[1] * b1[2]
-  v[11] <- q * (b1[1] - b2[1])
-
-  # now define u based on v
-  u <- double(5)
-  u[1] <- v[3] * v[11] - v[5]^2
-  u[2] <- v[1] * v[11] + v[3] * (v[8] + v[10]) - 2 * v[4] * v[5]
-  u[3] <- v[1] * (v[8] + v[10]) + v[3] * (v[7] - v[9]) - v[4]^2 - 2 * v[2] * v[5]
-  u[4] <- v[1] * (v[7] - v[9]) + v[3] * v[6] - 2 * v[2] * v[4]
-  u[5] <- v[1] * v[6] - v[2]^2
-
-  # now find roots of the quartic
-  y_star <- uniroot(quart_in_y, interval = c(-2, 2), u = u)
-
-
-}
+# ellipse_overlap <- function(mu1, mu2, Sigma1, Sigma2, q = 1){
+#
+#   # first invert covariance matrices
+#   A1 <- solve(Sigma1)
+#   A2 <- solve(Sigma2)
+#
+#   b1 <- -mu1
+#   b2 <- -mu2
+#
+#   # next find intersections of ellipses
+#
+#   # define quartic function in y
+#   quart_in_y <- function(x, u){
+#     u[1] + u[2] * x + u[3] * x^2 + u[4] * x^3 + u[5] * x^4
+#   }
+#
+#   # defining v
+#   v <- vector("double", length = 11)
+#   v[1] <- 2 * (A1[1,1] * A2[1,2] - A2[1,1] * A1[1,2])
+#   v[2] <- A1[1,1] * A2[2,2] - A2[1,1] * A1[2,2]
+#   v[3] <- A1[1,1] * b2[1] - A2[1,1] * b1[1]
+#   v[4] <- A1[1,1] * b2[2] - A2[1,1] * b1[2]
+#   v[5] <- q * (A1[1,1] - A2[1,1])
+#   v[6] <- 2 * (A1[1,2] * A2[2,2] - A2[1,2] * A1[2,2])
+#   v[7] <- 2 * (A1[1,2] * b2[2] - A2[1,2] * b1[2])
+#   v[8] <- 2 * q * (A1[1,2] - A2[1, 2])
+#   v[9] <- A1[2,2] * b2[1] - A2[2,2] * b1[2]
+#   v[10] <- b1[1] * b2[2] - b2[1] * b1[2]
+#   v[11] <- q * (b1[1] - b2[1])
+#
+#   # now define u based on v
+#   u <- double(5)
+#   u[1] <- v[3] * v[11] - v[5]^2
+#   u[2] <- v[1] * v[11] + v[3] * (v[8] + v[10]) - 2 * v[4] * v[5]
+#   u[3] <- v[1] * (v[8] + v[10]) + v[3] * (v[7] - v[9]) - v[4]^2 - 2 * v[2] * v[5]
+#   u[4] <- v[1] * (v[7] - v[9]) + v[3] * v[6] - 2 * v[2] * v[4]
+#   u[5] <- v[1] * v[6] - v[2]^2
+#
+#   # now find roots of the quartic
+#   y_star <- uniroot(quart_in_y, interval = c(-2, 2), u = u)
+#
+#
+# }
 
 
 # helper functions ---------------------------
@@ -483,26 +483,34 @@ ellipse_df_list <- function(mu_new, L_new, ones, xy_circ){
 }
 
 
-ellipse_overlap_single_mc <- function(mu1, mu2, Sigma1, Sigma2, q, npp = 500){
+ellipse_overlap_single_mc <- function(mus, Sigmas, q, npp = 500){
 
   # first simulate some data
-  y_sim <- mvtnorm::rmvnorm(npp, mu1, Sigma1)
+  y_sim <- mvtnorm::rmvnorm(npp, mus[[1]], Sigmas[[1]])
 
   ones <- matrix(1, ncol = ncol(y_sim), nrow = nrow(y_sim))
 
-  test_1 <- diag((y_sim - ones %*% diag(mu1)) %*% solve(Sigma1) %*% (t(y_sim) - diag(mu1) %*% t(ones)))
-  test_2 <- diag((y_sim - ones %*% diag(mu2)) %*% solve(Sigma2) %*% (t(y_sim) - diag(mu2) %*% t(ones)))
+  # get tests
+  tests <- mapply(
+    FUN = function(mus, Sigmas, ones, q){
+      test <- diag((y_sim - ones %*% diag(mu1)) %*% solve(Sigma1) %*% (t(y_sim) - diag(mu1) %*% t(ones)))
+      return(test < q)
+    },
+    mus, Sigmas, extra_args = list(ones = ones, q = q)
+  )
 
-  sims_in_1 <- test_1 < q
+  # now find which sims are in all
+  sims_in_all <- Reduce("&", tests)
 
-  sims_in_2 <- test_2 < q
-
-  # now find which sims are in both
-  sims_in_both <- sims_in_1 & sims_in_2
-
-  # get area of first ellipse
-  lambda <- eigen(Sigma2)
-  area1 <- pi * prod(sqrt(lambda$values)) * q
+  # get areas of ellipses
+  areas <- sapply(
+    Sigmas,
+    function(x, q){
+      lambda <- eigen(x)
+      return(pi * prod(sqrt(lambda$values)) * q^2)
+    },
+    q = q
+  )
 
 
 }

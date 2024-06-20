@@ -45,8 +45,8 @@ data("eg_data")
 # distribution per group
 mfit <- isoniche(
   mean = list(
-    X1 ~ grp + x,
-    X2 ~ grp + x
+    y1 ~ grp + x,
+    y2 ~ grp + x
   ),
   var = list(
     ~ grp,
@@ -64,7 +64,7 @@ newdat <- data.frame(
 
 plotdf <- construct_ellipses(mfit, newdat, n = 50)
 
-ggplot(data = eg_data, aes(x = X1, y = X2, color = grp)) +
+ggplot(data = eg_data, aes(x = y1, y = y2, color = grp)) +
   geom_point() +
   geom_path(
     data = plotdf,
