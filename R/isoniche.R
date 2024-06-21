@@ -363,7 +363,108 @@ sea <- function(mfit, newdat, n = 250){
 }
 
 
-ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
+
+
+
+#' Calculate the overlap of ellipses using Monte Carlo simulation
+#'
+#' This function estimates the overlap area of multiple ellipses
+#' defined by their means and covariance matrices using a Monte Carlo
+#' simulation approach.
+#'
+#' @param mus A list of numeric vectors representing the mean vectors of the ellipses.
+#' @param Sigmas A list of matrices representing the covariance matrices of the ellipses.
+#' @param q A numeric value representing the quantile used to define the ellipses.
+#' This can be defined based on the desired quantile of a \eqn{\chi^2_2} distribution.
+#' @param npp An integer specifying the number of points to be used in the Monte Carlo simulation.
+#' Default is 1000.
+#'
+#' @return A numeric value representing the estimated overlap area of the ellipses.
+#'
+#' @details
+#' The function first simulates `npp` points uniformly within a bounding box that contains
+#' the ellipses. It then tests whether these points lie within each of the ellipses defined
+#' by their respective means and covariance matrices. The overlap area is calculated based
+#' on the proportion of points that lie within all ellipses, multiplied by the area of the
+#' bounding box.
+#'
+#' @examples
+#' \dontrun{
+#' mus <- list(c(0, 0), c(1, 1))
+#' Sigmas <- list(diag(2), diag(2))
+#' q <- 2
+#' ellipse_overlap_single_mc(mus, Sigmas, q)
+#' }
+#'
+#' @importFrom stats runif
+#' @export
+ellipse_overlap_single_mc <- function(mus, Sigmas, q, npp = 1000){
+
+  # first, simulate some points in the sample space
+  bb <- find_bound_box(mus, Sigmas, q)
+  y_sim <- cbind(
+    stats::runif(npp, min = bb[1,1], max = bb[2,1]),
+    stats::runif(npp, min = bb[2,2], max = bb[3,2])
+  )
+  ones <- matrix(1, ncol = ncol(y_sim), nrow = nrow(y_sim))
+
+  # get tests
+  tests <- mapply(
+    FUN = function(mu, Sigma, ones, q, y_sim){
+      test <- diag((y_sim - ones %*% diag(mu)) %*% solve(Sigma) %*% (t(y_sim) - diag(mu) %*% t(ones)))
+      return(test < q)
+    },
+    mus, Sigmas, MoreArgs = list(ones = ones, q = q, y_sim = y_sim),
+    SIMPLIFY = F
+  )
+
+  # now find which sims are in all
+  sims_in_all <- Reduce("&", tests)
+
+  area_S <- (bb[2, 1] - bb[1, 1]) * (bb[3, 2] - bb[2, 2])
+  return(area_S * mean(sims_in_all))
+}
+
+
+
+
+
+#' Estimate Posterior Overlap of Pairs of Ellipses
+#'
+#' This function estimates the overlap area for each pair of ellipses
+#' defined by the user for each of `n` draws from the posterior distribution
+#' of the mean vector and covariance matrix defining each ellipse.
+#'
+#' @param mfit An `isoniche` model object.
+#' @param df_pairs A data frame or a list of data frames. If a list of dataframes,
+#'  each should have 2 rows defining the comparisons. Each row represents a condition
+#'  for which the ellipse is defined. If a single data frame, the function will compute all pairwise
+#'  overlaps by default.
+#' @param q The quantile used to define the ellipses. This can be defined based on
+#' the desired quantile of a \eqn{\chi^2_2} distribution. The default is 1.
+#' @param n An integer specifying the number of draws from the posterior distribution. Default is 250.
+#' @param npp An integer specifying the number of points to be used in the Monte Carlo simulation for
+#' estimating ellipse overlap. Default is 1000. Overlap estimates will be more precise with more draws,
+#' but the function will get slow.
+#'
+#' @return A list where each element corresponds to a pair of conditions and contains the following components:
+#'   - `cond1`: The first condition in the pair.
+#'   - `cond2`: The second condition in the pair.
+#'   - `overlap_area`: A numeric vector of estimated overlap areas for each draw from the posterior.
+#'   This approximates the posterior distribution of the area of overlap.
+#'
+#' @details
+#' For pair of conditions and each draw from the posterior distribution, the function first
+#' simulates `npp` points uniformly within a bounding box that contains the ellipses.
+#' It then tests whether these points lie within each of the ellipses defined
+#' by their respective means and covariance matrices. The overlap area is calculated based
+#' on the proportion of points that lie within all ellipses, multiplied by the area of the
+#' bounding box.
+#'
+#'
+#' @seealso \code{\link{ellipse_overlap_single_mc}}
+#' @export
+ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 1000){
 
   if(!(is.data.frame(df_pairs) | is.list(df_pairs))){
     stop("Unrecognized input type for df_pairs.
@@ -385,6 +486,7 @@ ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
     pairs_list <- df_pairs
   }
 
+  # get draws from posterior means and covariances
   preds_pairs <- lapply(
     pairs_list,
     function(df, mfit, n){
@@ -393,8 +495,39 @@ ellipse_overlap_mc <- function(mfit, df_pairs, q = 1, n = 250, npp = 500){
     mfit, n
   )
 
+  # compute overlap for each of the draws from the posterior
+  # and for each pair
+  overlap <- lapply(
+    preds_pairs,
+    FUN = function(pair, q, npp){
+      lapply(
+        1:n,
+        FUN = function(i, l1, l2, q, npp){
+          ellipse_overlap_single_mc(
+            mus = list(l1$mu[i, ], l2$mu[i, ]),
+            Sigmas = list(l1$Sigma[[i]], l2$Sigma[[i]]),
+            q = q,
+            npp = npp
+          )
+        },
+        l1 = pair[[1]], l2 = pair[[2]],
+        q = q, npp = npp
+      )
+    },
+    q = q, npp = npp
+  )
 
+  # add dataframe listing the comparison
+  for(i in 1:length(pairs_list)){
+    overlap[[i]] <- c(
+      list(
+        cond1 = pairs_list[[i]][1, ], cond2 = pairs_list[[i]][2, ],
+        overlap_area = unlist(overlap[[i]])
+      )
+    )
+  }
 
+  return(overlap)
 }
 
 
@@ -482,36 +615,31 @@ ellipse_df_list <- function(mu_new, L_new, ones, xy_circ){
   )
 }
 
+find_bound_box <- function(mus, Sigmas, q){
+  xy_circ <- rbind(
+    cos(seq(0, 2 * pi, length.out = 100)),
+    sin(seq(0, 2 * pi, length.out = 100))
+  ) * sqrt(q)
+  Ls <- lapply(Sigmas, function(x){t(chol(x))})
+  ones <- matrix(data = 1, 2, 100)
 
-ellipse_overlap_single_mc <- function(mus, Sigmas, q, npp = 500){
+  dfs_list <- ellipse_df_list(mus, Ls, ones, xy_circ)
 
-  # first simulate some data
-  y_sim <- mvtnorm::rmvnorm(npp, mus[[1]], Sigmas[[1]])
+  # now get the min and max of each coordinate
+  all <- Reduce(rbind, dfs_list)
 
-  ones <- matrix(1, ncol = ncol(y_sim), nrow = nrow(y_sim))
-
-  # get tests
-  tests <- mapply(
-    FUN = function(mus, Sigmas, ones, q){
-      test <- diag((y_sim - ones %*% diag(mu1)) %*% solve(Sigma1) %*% (t(y_sim) - diag(mu1) %*% t(ones)))
-      return(test < q)
-    },
-    mus, Sigmas, extra_args = list(ones = ones, q = q)
+  bb <- rbind(
+    c(min(all[, 1]), min(all[, 2])),
+    c(max(all[, 1]), min(all[, 2])),
+    c(max(all[, 1]), max(all[, 2])),
+    c(min(all[, 1]), max(all[, 2]))
   )
 
-  # now find which sims are in all
-  sims_in_all <- Reduce("&", tests)
+  bb[c(1,4), 1] <- bb[c(1,4), 1] - (1/20) * (bb[2,1] - bb[1,1])
+  bb[c(2,3), 1] <- bb[c(2,3), 1] + (1/20) * (bb[2,1] - bb[1,1])
+  bb[c(1,2), 2] <- bb[c(1,2), 2] - (1/20) * (bb[4,2] - bb[1,2])
+  bb[c(3,4), 2] <- bb[c(3,4), 2] + (1/20) * (bb[4,2] - bb[1,2])
 
-  # get areas of ellipses
-  areas <- sapply(
-    Sigmas,
-    function(x, q){
-      lambda <- eigen(x)
-      return(pi * prod(sqrt(lambda$values)) * q^2)
-    },
-    q = q
-  )
-
-
+  return(bb)
 }
 

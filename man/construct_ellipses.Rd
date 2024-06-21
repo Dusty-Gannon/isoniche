@@ -63,7 +63,7 @@ newdat <- data.frame(
   x = rep(0, length(unique(eg_data$grp)))
 )
 
-plotdf <- construct_ellipses(mfit, newdat, n = 50)
+plotdf <- construct_ellipses(mfit, newdat, n = 50, q = 6)
 
 ggplot(data = eg_data, aes(x = y1, y = y2, color = grp)) +
   geom_point() +
