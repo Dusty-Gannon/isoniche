@@ -24,7 +24,7 @@ for each row of \code{newdat}. It then computes the SEA for each and returns a d
 of the posterior draws with one row per draw per condition.
 }
 \examples{
-
+#' \dontrun{
 library(isoniche)
 library(dplyr)
 library(ggplot2)
@@ -75,5 +75,5 @@ ggplot(sea_post, aes(x = sea)) +
   geom_density(aes(fill = grp), alpha = 0.5, color = "grey") +
   theme_classic() +
   scale_fill_manual(values = c("steelblue", "brown"))
-
+#' }
 }

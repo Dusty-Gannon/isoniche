@@ -41,8 +41,9 @@ mfit <- isoniche(
     ~ grp,
     ~ grp
   ),
-  data = eg_data,
-  cores = 4
+  data = eg_data
+  # recommend using the cores option for parallel processing
+  # cores = 4
 )
 ```
 
@@ -144,6 +145,57 @@ From the `sea_wide` object, we can also compute things like the posterior probab
 mean(sea_wide$grp1_minus_grp2 > 0)
 ```
 
+## Ellipse overlap
+
+Estimating ellipse overlap may be of interest in some cases, for example if one wants to compare the niche overlap between two or among many groups in the data. Package `isoniche` comes with a function, `isoniche::ellipse_overlap_mc()` to estimate niche overlap using Monte-Carlo simulations from the posterior predictive distribution. It then estimates the proportion of draws that fall within two ellipses. Here is a simple example.
+
+```{r}
+overlap <- ellipse_overlap_mc(mfit, newdat, q = qchisq(0.95, 2))
+str(overlap)
+```
+The function returns a list. Each element in the list specifies the two ellipses being compared (the *conditions*, `cond1` and `cond2`). The named element `overlap[[1]]$overlap_area` gives the posterior distribution for the overlap of comparison 1. So, if I wanted the Bayes estimate and 95% credible interval for the overlap between groups 1 and 2, holding `x = 0`, I can get this easily from the output.
+
+```{r}
+overlap[[1]]$overlap_area |> mean()
+
+# credible intervals
+overlap[[1]]$overlap_area |> quantile(probs = c(0.025, 0.975))
+```
+
+### An example with more than one comparison
+
+Let's say I wanted to estimate the overlap between groups 1 and 2 first when `x` is held constant at `x = 0`, and then also when `x = 0` for group 1 but `x = 1` for group 2. To do this, I could provide the `isoniche::ellipse_overlap_mc()` function with a list of dataframes, each with two rows defining the conditions I want to compare. For this example, I could do the following:
+
+```{r}
+# replace x = 0 with x = 1 for the second df
+newdat_comp2 <- newdat
+(newdat_comp2$x[2] <- 1)
+
+# now stack into a list 
+df_pairs <- list(
+  comparison1 = newdat,
+  comparison2 = newdat_comp2
+)
+
+overlap_eg2 <- ellipse_overlap_mc(mfit, df_pairs, q = qchisq(0.95, 2))
+str(overlap_eg2)
+```
+
+As before, we get a list, but now the outer layer of the list has two elements; one for the first overlap estimate when `x = 0` and one for the second overlap estimate when `x = 1` for group 2.
+
+```{r out.width="60%"}
+df_overlap_plot <- data.frame(
+  overlap = c(overlap_eg2[[1]]$overlap_area, overlap_eg2[[2]]$overlap_area),
+  comparison = rep(1:2, each = length(overlap_eg2[[1]]$overlap_area)) |>
+    factor()
+)
+ggplot(df_overlap_plot, aes(x = overlap, color = comparison)) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  scale_color_manual(values = c("steelblue", "brown"))
+```
+
+
 ## Custom posterior calculations
 
 The package also comes with `predict()` methods that are similar to the predict methods of other linear model packages. The function takes a fitted model and newdata over which to predict, but also includes options to take draws from the posterior distribution of the mean vector and covariance matrix of the supplied conditions in `newdat` or take draws from the *posterior predictive distribution*,
@@ -219,10 +271,5 @@ sapply(
 ```
 
 
-## Ellipse overlap
-
-```{r}
-
-```
 
 

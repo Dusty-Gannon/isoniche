@@ -29,7 +29,7 @@ Function to fit a bivariate regression model for calculating standard ellipses
 in isotopic niche comparisons.
 }
 \examples{
-
+#' \dontrun{
 library(isoniche)
 library(dplyr)
 library(ggplot2)
@@ -80,5 +80,5 @@ ggplot(sea_post, aes(x = sea)) +
   geom_density(aes(fill = grp), alpha = 0.5, color = "grey") +
   theme_classic() +
   scale_fill_manual(values = c("steelblue", "brown"))
-
+#' }
 }

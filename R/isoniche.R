@@ -110,8 +110,8 @@ isoniche <- function(mean, var, data, ...){
 #' The default is 1, which results in ellipses being drawn from the marginal means of the posterior
 #' of each parameter. If \code{n} > 1, then the function will draw \code{n} samples from the joint
 #' posterior and construct a standard ellipse for each set of parameters.
-#' @param sds Multiple of standard deviations to use for ellipses. For standard ellipses, \code{sds = 1},
-#' For approximate 95% ellipses, you could use \code{sds = 2}.
+#' @param q Quantile to use for ellipses. For standard ellipses, \code{q = 1},
+#' For approximate 95% ellipses, you could use \code{qchisq(0.95, 2)}.
 #'
 #' @return A dataframe that can be used for plotting standard ellipses or calculating isotopic niche
 #' statistics.

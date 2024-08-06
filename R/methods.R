@@ -476,7 +476,7 @@ print.summary.isoniche <- function(sumobj, digits = 3){
 #'
 residuals.isoniche <- function(mfit){
   # posteriors of fitted values
-  y_hat <- predict(mfit, newdat = mfit$data$df, n = 100)
+  y_hat <- predict.isoniche(mfit, newdat = mfit$data$df, n = 100)
 
   mu <- lapply(
     y_hat,
@@ -543,11 +543,13 @@ residuals.isoniche <- function(mfit){
 #' @return Multipanel plot of residuals. The first shows the bivariate residuals, which should
 #' be approximately spherical (i.e., be bivariate normal with mean zero and covariance matrix
 #' \eqn{I_2}). The next plots show qq plots for each dimension.
+#' @importFrom stats qqnorm
+#' @importFrom graphics par plot lines abline
 #' @export
 #'
 plot.isoniche <- function(mfit){
 
-  resids <- residuals(mfit)
+  resids <- residuals.isoniche(mfit)
 
   sd1 <- cbind(
     cos(seq(0, 2 * pi, length.out = 100)),
@@ -556,14 +558,14 @@ plot.isoniche <- function(mfit){
 
   sd2 <- 2 * sd1
 
-  par(mfrow = c(2,2), mar = c(4,4,1,1))
-  plot(resids, xlab = colnames(resids)[1], ylab = colnames(resids)[2])
-  lines(sd1, col = "blue", lty = "dashed")
-  lines(sd2, col = "red", lty = "dashed")
-  qqnorm(resids[, 1], main = colnames(resids)[1])
-  abline(0, 1, col = "blue")
-  qqnorm(resids[, 2], main = colnames(resids)[2])
-  abline(0, 1, col = "blue")
+  graphics::par(mfrow = c(2,2), mar = c(4,4,1,1))
+  graphics::plot(resids, xlab = colnames(resids)[1], ylab = colnames(resids)[2])
+  graphics::lines(sd1, col = "blue", lty = "dashed")
+  graphics::lines(sd2, col = "red", lty = "dashed")
+  stats::qqnorm(resids[, 1], main = colnames(resids)[1])
+  graphics::abline(0, 1, col = "blue")
+  stats::qqnorm(resids[, 2], main = colnames(resids)[2])
+  graphics::abline(0, 1, col = "blue")
 
 }
 

@@ -17,8 +17,8 @@ The default is 1, which results in ellipses being drawn from the marginal means 
 of each parameter. If \code{n} > 1, then the function will draw \code{n} samples from the joint
 posterior and construct a standard ellipse for each set of parameters.}
 
-\item{sds}{Multiple of standard deviations to use for ellipses. For standard ellipses, \code{sds = 1},
-For approximate 95\% ellipses, you could use \code{sds = 2}.}
+\item{q}{Quantile to use for ellipses. For standard ellipses, \code{q = 1},
+For approximate 95\% ellipses, you could use \code{qchisq(0.95, 2)}.}
 }
 \value{
 A dataframe that can be used for plotting standard ellipses or calculating isotopic niche
@@ -30,7 +30,7 @@ to predict. For example, a set of groups for which to construct standard
 ellipses.
 }
 \examples{
-
+#' \dontrun{
 library(isoniche)
 library(dplyr)
 library(ggplot2)
@@ -81,5 +81,5 @@ ggplot(sea_post, aes(x = sea)) +
   geom_density(aes(fill = grp), alpha = 0.5, color = "grey") +
   theme_classic() +
   scale_fill_manual(values = c("steelblue", "brown"))
-
+#' }
 }
